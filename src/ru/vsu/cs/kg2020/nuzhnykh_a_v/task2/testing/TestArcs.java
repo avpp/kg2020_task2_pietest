@@ -47,13 +47,13 @@ public class TestArcs {
         int LEN_START = to_start - from_start;
         int LEN_STOP = to_shift - from_shift;
         int W = r_hor, H = r_vert, L = r_hor*2, T = r_vert*2;
-        int VERT_SPACE = 5, HOR_SPACE = 5;
+        int VERT_SPACE = 30, HOR_SPACE = 30;
         int STEP_START = start_step, STEP_STOP = shift_step;
         int START_STEP_N = LEN_START / STEP_START;
         int STOP_STEP_N = LEN_STOP / STEP_STOP;
-        int FULL_W = START_STEP_N*(W*2+HOR_SPACE) + L*2, FULL_H = STOP_STEP_N*(H*2+VERT_SPACE) + T*2;
 
-        int TOTAL_W = W*2+HOR_SPACE + font.getSize()*2, TOTAL_H = H*2+VERT_SPACE + font.getSize()*2;
+        int TOTAL_W = W+HOR_SPACE, TOTAL_H = H+VERT_SPACE + font.getSize()*3;
+        int FULL_W = START_STEP_N*(TOTAL_W) + L*2, FULL_H = STOP_STEP_N*(TOTAL_H) + T*2;
 
         BufferedImage bi = new BufferedImage(FULL_W, FULL_H, BufferedImage.TYPE_INT_RGB);
         final Graphics2D gr2d = bi.createGraphics();
@@ -80,8 +80,9 @@ public class TestArcs {
                 int a2 = a1 + da;
                 int x = L + i*TOTAL_W;
                 int y = T + j*TOTAL_H;
-                int left = x-TOTAL_W/2, top = y-TOTAL_H/2 - font.getSize()/2;
-                gr2d.drawString(String.format("%d + %d = %d", a1, da, a2), left+3, top+3+font.getSize());
+                int left = x-TOTAL_W/2, top = y-TOTAL_H/2 - font.getSize()*3/2;
+                gr2d.drawString(String.format("%d + %d", a1, da), left+3, top+3+font.getSize());
+                gr2d.drawString(String.format("= %d", a2), left+3, top+3+font.getSize()*2+2);
                 gr2d.setColor(Color.gray);
                 gr2d.drawLine(left, top, left+TOTAL_W/2, top);
                 gr2d.drawLine(left, top, left, top+TOTAL_H/2);
@@ -156,8 +157,8 @@ public class TestArcs {
     public static void startTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, boolean withMarkers, String basePath) throws Exception {
         Map<String, int[]> testCases = new HashMap<>();
         testCases.put("main", new int[]{50, 50, 0, 360, 10, 0, 360, 10});
-        testCases.put("small", new int[]{50, 50, 0, 360, 10, 0, 5, 1});
-        testCases.put("big", new int[]{50, 50, 0, 360, 10, 355, 360, 1});
+        testCases.put("small", new int[]{50, 50, 0, 360, 10, 0, 11, 1});
+        testCases.put("big", new int[]{50, 50, 0, 360, 10, 350, 361, 1});
         testCases.put("sq", new int[]{50, 50, 0, 360, 90, 0, 360, 90});
         testCases.put("ellipse_ver_main", new int[]{30, 70, 0, 360, 10, 0, 360, 10});
         testCases.put("ellipse_hor_main", new int[]{70, 30, 0, 360, 10, 0, 360, 10});
