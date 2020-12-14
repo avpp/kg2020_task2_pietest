@@ -37,13 +37,58 @@ public class TestArcs {
             shift_step = data[7];
         }
     }
-    private static BufferedImage fullTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, boolean withMarkers,FullTestConfig cfg) {
-        return fullTest(factory, withMarkers, cfg.r_hor, cfg.r_vert, cfg.from_start, cfg.to_start, cfg.start_step, cfg.from_shift, cfg.to_shift, cfg.shift_step);
+
+    public interface ArcPieDrawer {
+        void draw(int x, int y, int w, int h, double start, double stop, Color c);
+    }
+    public interface ArcPieDrawerProvider {
+        ArcPieDrawer getDrawer(PrimitivesFactoryWithDefaultGraphicsImplementation factory, GraphicsProvider gp);
+
+        ArcPieDrawerProvider ARC_DRAWER_PROVIDER = new ArcPieDrawerProvider() {
+            @Override
+            public ArcPieDrawer getDrawer(PrimitivesFactoryWithDefaultGraphicsImplementation factory, GraphicsProvider gp) {
+                ArcDrawer ad = factory.createArcDrawer(gp);
+                return new ArcPieDrawer() {
+                    @Override
+                    public void draw(int x, int y, int w, int h, double start, double stop, Color c) {
+                        ad.drawArc(x, y, w, h, start, stop, c);
+                    }
+                };
+            }
+        };
+        ArcPieDrawerProvider PIE_DRAWER_PROVIDER = new ArcPieDrawerProvider() {
+            @Override
+            public ArcPieDrawer getDrawer(PrimitivesFactoryWithDefaultGraphicsImplementation factory, GraphicsProvider gp) {
+                PieDrawer pd = factory.createPieDrawer(gp);
+                return new ArcPieDrawer() {
+                    @Override
+                    public void draw(int x, int y, int w, int h, double start, double stop, Color c) {
+                        pd.drawPie(x, y, w, h, start, stop, c);
+                    }
+                };
+            }
+        };
+        ArcPieDrawerProvider FILL_DRAWER_PROVIDER = new ArcPieDrawerProvider() {
+            @Override
+            public ArcPieDrawer getDrawer(PrimitivesFactoryWithDefaultGraphicsImplementation factory, GraphicsProvider gp) {
+                PieFiller pf = factory.createPieFiller(gp);
+                return new ArcPieDrawer() {
+                    @Override
+                    public void draw(int x, int y, int w, int h, double start, double stop, Color c) {
+                        pf.fillPie(x, y, w, h, start, stop, c);
+                    }
+                };
+            }
+        };
+    }
+
+    private static BufferedImage fullTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, ArcPieDrawerProvider provider, boolean withMarkers,FullTestConfig cfg) {
+        return fullTest(factory, provider, withMarkers, cfg.r_hor, cfg.r_vert, cfg.from_start, cfg.to_start, cfg.start_step, cfg.from_shift, cfg.to_shift, cfg.shift_step);
     }
 
     private static final Font font = new Font("Arial", Font.PLAIN, 14);
 
-    private static BufferedImage fullTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, boolean withMarkers, int r_hor, int r_vert, int from_start, int to_start, int start_step, int from_shift, int to_shift, int shift_step) {
+    private static BufferedImage fullTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, ArcPieDrawerProvider provider, boolean withMarkers, int r_hor, int r_vert, int from_start, int to_start, int start_step, int from_shift, int to_shift, int shift_step) {
         int LEN_START = to_start - from_start;
         int LEN_STOP = to_shift - from_shift;
         int W = r_hor, H = r_vert, L = r_hor*2, T = r_vert*2;
@@ -60,8 +105,6 @@ public class TestArcs {
         gr2d.setColor(Color.WHITE);
         gr2d.fillRect(0, 0, FULL_W, FULL_H);
         gr2d.setColor(Color.BLACK);
-        //LineDrawer ld = new GraphicsLineDrawer(gr2);// new BresenhamLineDrawer(pd2);
-        //ArcDrawer ad = new GraphicsArcDrawer(gr2);// new BresenhamPieDrawer(pd2, ld);
 
         GraphicsProvider gpInstance = new GraphicsProvider() {
             @Override
@@ -69,8 +112,7 @@ public class TestArcs {
                 return gr2d;
             }
         };
-        PieDrawer pieDrawer = factory.createPieDrawer(gpInstance);
-        LineDrawer ld = factory.createLineDrawer(gpInstance);
+        ArcPieDrawer drawer = provider.getDrawer(factory, gpInstance);
 
         gr2d.setFont(font);
         for (int i = 0; i < START_STEP_N; i++) {
@@ -102,20 +144,32 @@ public class TestArcs {
                     gr2d.drawLine(x + W / 2, y + H / 2, x + W / 2, y + H / 2 - 3); //BR
                 }
                 gr2d.setColor(Color.black);
-                pieDrawer.drawPie(x-W/2, y-H/2, W, H, a1, da, Color.black);
+                drawer.draw(x-W/2, y-H/2, W, H, a1*Math.PI/180, da*Math.PI/180, Color.black);
             }
         }
         gr2d.dispose();
         return bi;
     }
 
-    public static void startSimpleTest(String path, PrimitivesFactoryWithDefaultGraphicsImplementation factory, boolean withMarkers, int[] args) throws Exception {
-        BufferedImage bi_your = fullTest(factory, withMarkers, new FullTestConfig(args));
-        ImageIO.write(bi_your, "bmp", new File(path + "_your.bmp"));
-        BufferedImage bi_ideal = fullTest(new PrimitivesFactoryWithDefaultGraphicsImplementation(), withMarkers, new FullTestConfig(args));
-        ImageIO.write(bi_ideal, "bmp", new File(path + "_ideal.bmp"));
-        BufferedImage bi_diff = diff(bi_ideal, bi_your, 0, 0);
-        ImageIO.write(bi_diff, "bmp", new File(path + "_diff.bmp"));
+    public static final int IMG_NONE = 0x00;
+    public static final int IMG_YOUR = 0x01;
+    public static final int IMG_IDEAL = 0x02;
+    public static final int IMG_DIFF = 0x04;
+    private static void startSimpleTest(String path, int img_types, PrimitivesFactoryWithDefaultGraphicsImplementation factory, ArcPieDrawerProvider provider, boolean withMarkers, int[] args) throws Exception {
+        BufferedImage bi_your = null;
+        if ((img_types & (IMG_YOUR | IMG_DIFF)) != 0)
+            bi_your = fullTest(factory, provider, withMarkers, new FullTestConfig(args));
+        if ((img_types & IMG_YOUR) != 0)
+            ImageIO.write(bi_your, "bmp", new File(path + "_your.bmp"));
+        BufferedImage bi_ideal = null;
+        if ((img_types & (IMG_IDEAL | IMG_DIFF)) != 0)
+            bi_ideal = fullTest(new PrimitivesFactoryWithDefaultGraphicsImplementation(), provider, withMarkers, new FullTestConfig(args));
+        if ((img_types & IMG_IDEAL) != 0)
+            ImageIO.write(bi_ideal, "bmp", new File(path + "_ideal.bmp"));
+        if ((img_types & IMG_DIFF) != 0) {
+            BufferedImage bi_diff = diff(bi_ideal, bi_your, 0, 0);
+            ImageIO.write(bi_diff, "bmp", new File(path + "_diff.bmp"));
+        }
     }
 
     private static BufferedImage diff(BufferedImage ideal, BufferedImage test, int dx, int dy) {
@@ -154,7 +208,25 @@ public class TestArcs {
         return result;
     }
 
-    public static void startTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, boolean withMarkers, String basePath) throws Exception {
+    private static class ArcPieDrawerProviderAndName {
+        private String name;
+        private ArcPieDrawerProvider provider;
+        public ArcPieDrawerProviderAndName(String name, ArcPieDrawerProvider provider) {
+            this.name = name;
+            this.provider = provider;
+        }
+        public String getName() {
+            return name;
+        }
+        public ArcPieDrawerProvider getProvider() {
+            return provider;
+        }
+    }
+    public static final int TEST_NONE = 0x00;
+    public static final int TEST_PIE = 0x01;
+    public static final int TEST_ARC = 0x02;
+    public static final int TEST_FILL = 0x04;
+    public static void startTest(PrimitivesFactoryWithDefaultGraphicsImplementation factory, int img_types, int test_types, boolean withMarkers, String basePath) throws Exception {
         Map<String, int[]> testCases = new HashMap<>();
         testCases.put("main", new int[]{50, 50, 0, 360, 10, 0, 360, 10});
         testCases.put("small", new int[]{50, 50, 0, 360, 10, 0, 11, 1});
@@ -163,7 +235,22 @@ public class TestArcs {
         testCases.put("ellipse_ver_main", new int[]{30, 70, 0, 360, 10, 0, 360, 10});
         testCases.put("ellipse_hor_main", new int[]{70, 30, 0, 360, 10, 0, 360, 10});
 
-        for (var tc : testCases.entrySet())
-            startSimpleTest(basePath + "/" + tc.getKey(), factory, withMarkers, tc.getValue());
+        Map<Integer, ArcPieDrawerProviderAndName> test_types_map = new HashMap<>();
+        test_types_map.put(TEST_ARC, new ArcPieDrawerProviderAndName("arc", ArcPieDrawerProvider.ARC_DRAWER_PROVIDER));
+        test_types_map.put(TEST_PIE, new ArcPieDrawerProviderAndName("pie", ArcPieDrawerProvider.PIE_DRAWER_PROVIDER));
+        test_types_map.put(TEST_FILL, new ArcPieDrawerProviderAndName("fill", ArcPieDrawerProvider.FILL_DRAWER_PROVIDER));
+
+        for (Map.Entry<Integer, ArcPieDrawerProviderAndName> tt : test_types_map.entrySet()) {
+            if ((test_types & tt.getKey()) != 0) {
+                System.out.printf("====vvv TESTS for %s vvv====\n", tt.getValue().getName());
+                for (Map.Entry<String, int[]> tc : testCases.entrySet()) {
+                        System.out.printf("  test %s...", tc.getKey());
+                        startSimpleTest(basePath + "/" + tt.getValue().getName() + "_" + tc.getKey(), img_types, factory, tt.getValue().getProvider(), withMarkers, tc.getValue());
+                        System.out.println(" COMPLETE!");
+                        System.gc();
+                }
+                System.out.printf("====^^^ TESTS for %s ^^^====\n\n", tt.getValue().getName());
+            }
+        }
     }
 }
